@@ -20,5 +20,6 @@ void lcd1602_clear(void);
 void lcd1602_move_cursor(int col, int row);
 void lcd1602_write_string(const char *str);
 void lcd1602_write_char(char c);
+esp_err_t lcd1602_init_default(void);
 
 #endif

@@ -49,8 +49,30 @@ Drink drinks[] = {
                          {"Gin", 40.0, 100, 100, 100},        // Weiß/Klar
                          {"Tonic Water", 120.0, 0, 100, 120}, // Cyan/Türkis
                          {"", 0.0, 0, 0, 0}                   // Platzhalter
+                     }},
+    {"Wodka O", 2, {
+                       {"Wodka", 40.0, 100, 100, 100},     // Weiß/Klar
+                       {"Orangensaft", 120.0, 150, 80, 0}, // Orange
+                       {"", 0.0, 0, 0, 0}                  // Platzhalter
+                   }},
+    {"Tequila Sunrise", 3, {
+                               {"Tequila", 40.0, 100, 100, 100},   // Weiß/Klar
+                               {"Orangensaft", 100.0, 150, 80, 0}, // Orange
+                               {"Grenadine", 15.0, 150, 0, 0}      // Rot
+                           }},
+    {"Cuba Libre", 3, {
+                          {"Rum", 40.0, 120, 60, 20},         // Braun/Amber
+                          {"Cola", 120.0, 50, 20, 0},         // Dunkelbraun
+                          {"Limettensaft", 15.0, 50, 150, 20} // Hellgrün
+                      }},
+    {"Margarita", 3, {
+                         {"Tequila", 50.0, 100, 100, 100},   // Weiß/Klar
+                         {"Triple Sec", 20.0, 120, 100, 50}, // Leichtes Gelb
+                         {"Limettensaft", 20.0, 50, 150, 20} // Hellgrün
                      }}};
-const int NUM_DRINKS = 2;
+
+// WICHTIG: Die Anzahl der Drinks muss jetzt auf 6 erhöht werden!
+const int NUM_DRINKS = 6;
 
 // --- Globale Variablen ---
 AppState current_state = STATE_START;
@@ -72,14 +94,7 @@ void app_main(void)
     vTaskDelay(pdMS_TO_TICKS(100)); // Warten für stabile Spannungen
 
     // --- DISPLAY KONFIGURIEREN & STARTEN ---
-    lcd1602_config_t lcd_config = {
-        .i2c_port = I2C_NUM_0,
-        .i2c_address = 0x27,
-        .sda_io_num = GPIO_NUM_5,
-        .scl_io_num = GPIO_NUM_6};
-
-    esp_err_t res = lcd1602_init(&lcd_config);
-    if (res == ESP_OK)
+    if (lcd1602_init_default() == ESP_OK)
     {
         printf("Display erfolgreich gestartet!\n");
     }
@@ -103,7 +118,7 @@ void app_main(void)
                 lcd1602_move_cursor(0, 0);
                 lcd1602_write_string("Barkeeper Guide");
                 lcd1602_move_cursor(0, 1);
-                lcd1602_write_string("R: Starten");
+                lcd1602_write_string("R-Knopf: Starten");
 
                 printf("DISPLAY: Barkeeper Guide | Drücke Rechts um zu starten\n");
                 redraw_display = false;
@@ -128,7 +143,7 @@ void app_main(void)
                 lcd1602_move_cursor(0, 1);
                 lcd1602_write_string("L:Tara | R:Weiter");
 
-                printf("DISPLAY: Glas hinstellen | L:Tara | R:Weiter\n");
+                printf("DISPLAY: Glas hinstellen | L:Tara | R: Menue\n");
                 redraw_display = false;
             }
 
@@ -138,6 +153,8 @@ void app_main(void)
                 vTaskDelay(pdMS_TO_TICKS(2));
                 lcd1602_move_cursor(0, 0);
                 lcd1602_write_string("Waage tariert...");
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("R-Knopf: Weiter ");
 
                 scale_tara();
                 printf("Waage tariert!\n");
@@ -257,8 +274,12 @@ void app_main(void)
                     lcd1602_move_cursor(0, 1);
                     lcd1602_write_string(countdown_text);
 
-                    printf("...Bitte Flasche wegstellen. Naechste Zutat in %d...\n", c);
-                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    led_set_progress(current_ing->target_weight, current_ing->target_weight, current_ing->r, current_ing->g, current_ing->b);
+                    vTaskDelay(pdMS_TO_TICKS(500)); // 500 Millisekunden leuchten
+
+                    // 3. BLINK-EFFEKT: LEDs aus
+                    clear_led();
+                    vTaskDelay(pdMS_TO_TICKS(500));
                 }
                 current_ingredient_idx++;
 

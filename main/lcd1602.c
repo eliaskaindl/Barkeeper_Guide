@@ -1,6 +1,7 @@
 #include "lcd1602.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
 
 static lcd1602_config_t lcd_cfg;
 
@@ -101,4 +102,17 @@ void lcd1602_write_string(const char *str)
     {
         lcd1602_write_char(*str++);
     }
+}
+
+esp_err_t lcd1602_init_default(void)
+{
+    lcd1602_config_t lcd_config = {
+        .i2c_port = I2C_NUM_0,
+        .i2c_address = 0x27,
+        .sda_io_num = GPIO_NUM_5, // Dein fester SDA Pin
+        .scl_io_num = GPIO_NUM_6  // Dein fester SCL Pin
+    };
+
+    // Ruft die originale Funktion mit der festen Projekt-Struktur auf
+    return lcd1602_init(&lcd_config);
 }
