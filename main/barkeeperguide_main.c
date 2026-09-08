@@ -11,11 +11,15 @@
 #include "Scale.h"
 #include "lcd1602.h"
 
+#define MAX_GLASS_VOLUME 300.0   // Maximales Fassungsvermögen deines Glase
+float recipe_scale_factor = 1.0; // Multiplikator für die Zutaten
+
 typedef enum
 {
     STATE_START,
     STATE_PLACE_GLASS,
     STATE_MENU,
+    STATE_ICE_OPTION,
     STATE_POURING,
     STATE_FINISHED,
     STATE_WAIT_REMOVE
@@ -170,7 +174,7 @@ void app_main(void)
             }
             break;
 
-        // 3. DRINK AUSWAHL (MENÜ)
+        // 3a. DRINK AUSWAHL (MENÜ)
         case STATE_MENU:
             if (redraw_display)
             {
@@ -199,16 +203,91 @@ void app_main(void)
 
             if (is_left_clicked())
             {
-                current_state = STATE_POURING;
+                current_state = STATE_ICE_OPTION;
                 current_ingredient_idx = 0;
+                redraw_display = true;
+            }
+            break;
 
+        // 3b. EISWÜRFEL ABFRAGE
+        case STATE_ICE_OPTION:
+            if (redraw_display)
+            {
+                lcd1602_clear();
+                vTaskDelay(pdMS_TO_TICKS(2));
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("Eis ins Glas?");
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("L:Nein | R:Ja");
+
+                printf("DISPLAY: Eis abfragen | L: Nein | R: Ja\n");
+                redraw_display = false;
+            }
+
+            // Option 1: Kein Eis gewollt (L-Knopf)
+            if (is_left_clicked())
+            {
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
                 lcd1602_move_cursor(0, 0);
                 lcd1602_write_string("Bereite vor...");
 
                 scale_tara();
-                last_displayed_weight = -999.0; // Reset für den Gieß-Zustand
+                last_displayed_weight = -999.0;
+                recipe_scale_factor = 1.0;
+
+                current_state = STATE_POURING;
+                redraw_display = true;
+            }
+
+            // Option 2: Mit Eis (R-Knopf)
+            if (is_right_clicked())
+            {
+                lcd1602_clear();
+                vTaskDelay(pdMS_TO_TICKS(2));
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("Eis reingeben!");
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("R-Knopf: Fertig");
+
+                vTaskDelay(pdMS_TO_TICKS(400));
+                while (!is_right_clicked())
+                {
+                    vTaskDelay(pdMS_TO_TICKS(50));
+                }
+
+                lcd1602_clear();
+                vTaskDelay(pdMS_TO_TICKS(2));
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("Berechne Menge...");
+
+                // 1. Eisgewicht messen
+                float ice_weight = scale_get_weight_gram();
+                if (ice_weight < 0)
+                    ice_weight = 0;
+
+                // 2. Gesamtgewicht des aktuellen Rezepts berechnen
+                float total_recipe = 0;
+                for (int i = 0; i < drinks[selected_drink_idx].num_ingredients; i++)
+                {
+                    total_recipe += drinks[selected_drink_idx].ingredients[i].target_weight;
+                }
+
+                // 3. Skalierungsfaktor berechnen (nur runterskalieren, nie hochskalieren)
+                if ((ice_weight + total_recipe) > MAX_GLASS_VOLUME)
+                {
+                    recipe_scale_factor = (MAX_GLASS_VOLUME - ice_weight) / total_recipe;
+                    if (recipe_scale_factor < 0.1)
+                        recipe_scale_factor = 0.1; // Absicherung
+                }
+                else
+                {
+                    recipe_scale_factor = 1.0;
+                }
+
+                scale_tara();
+                last_displayed_weight = -999.0;
+                current_state = STATE_POURING;
                 redraw_display = true;
             }
             break;
@@ -219,9 +298,12 @@ void app_main(void)
             Drink *current_drink = &drinks[selected_drink_idx];
             Ingredient *current_ing = &current_drink->ingredients[current_ingredient_idx];
 
+            // Zielgewicht dynamisch anpassen
+            float scaled_target = current_ing->target_weight * recipe_scale_factor;
+
             float weight = scale_get_weight_gram();
 
-            led_set_progress(weight, current_ing->target_weight, current_ing->r, current_ing->g, current_ing->b);
+            led_set_progress(weight, scaled_target, current_ing->r, current_ing->g, current_ing->b);
 
             // Aktualisiere das Display nur, wenn sich der Zustand geändert hat ODER das Gewicht sich um mehr als 0.5g verändert hat
             if (redraw_display || (fabs(weight - last_displayed_weight) >= 0.5))
@@ -230,7 +312,7 @@ void app_main(void)
                 char line2[40];
 
                 // Formatierung für Zeile 1: Name der Zutat (z.B. "Aperol: 60.0g")
-                snprintf(line1, sizeof(line1), "%s: %.0fg", current_ing->name, current_ing->target_weight);
+                snprintf(line1, sizeof(line1), "%s: %.0fg", current_ing->name, scaled_target);
                 // Formatierung für Zeile 2: Aktuelles Gewicht (z.B. "Aktuell: 12.4g")
                 snprintf(line2, sizeof(line2), "Aktuell: %.1fg", weight);
 
@@ -243,14 +325,14 @@ void app_main(void)
                 lcd1602_write_string(line2);
 
                 printf("EINGIESSEN: [%s] - Bitte %.1fg eingießen. Aktuell: %.1fg\n",
-                       current_ing->name, current_ing->target_weight, weight);
+                       current_ing->name, scaled_target, weight);
 
                 last_displayed_weight = weight;
                 redraw_display = false;
             }
 
             // Ziel erreicht?
-            if (weight >= current_ing->target_weight)
+            if (weight >= scaled_target)
             {
                 printf("Zutat [%s] voll: STOPP! Bitte nicht mehr gießen.\n", current_ing->name);
                 clear_led();
@@ -274,7 +356,7 @@ void app_main(void)
                     lcd1602_move_cursor(0, 1);
                     lcd1602_write_string(countdown_text);
 
-                    led_set_progress(current_ing->target_weight, current_ing->target_weight, current_ing->r, current_ing->g, current_ing->b);
+                    led_set_progress(scaled_target, scaled_target, current_ing->r, current_ing->g, current_ing->b);
                     vTaskDelay(pdMS_TO_TICKS(500)); // 500 Millisekunden leuchten
 
                     // 3. BLINK-EFFEKT: LEDs aus
