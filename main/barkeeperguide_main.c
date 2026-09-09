@@ -184,12 +184,22 @@ void app_main(void)
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
 
+                // Zeile 1: Titel
                 lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Drink waehlen:");
+                lcd1602_write_string("=== DRINK MENUE ===");
+
+                // Zeile 2: Info
                 lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("Aktuelle Wahl:");
+
+                // Zeile 3: Der Drink
+                lcd1602_move_cursor(0, 2);
                 lcd1602_write_string(drink_text);
 
-                printf("DISPLAY: Menu -> %s\n", drink_text);
+                // Zeile 4: Steuerung
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("L:Start  |  R:Nxt");
+
                 redraw_display = false;
             }
 
@@ -308,24 +318,32 @@ void app_main(void)
             // Aktualisiere das Display nur, wenn sich der Zustand geändert hat ODER das Gewicht sich um mehr als 0.5g verändert hat
             if (redraw_display || (fabs(weight - last_displayed_weight) >= 0.5))
             {
-                char line1[40];
                 char line2[40];
+                char line3[40];
+                char line4[40];
 
-                // Formatierung für Zeile 1: Name der Zutat (z.B. "Aperol: 60.0g")
-                snprintf(line1, sizeof(line1), "%s: %.0fg", current_ing->name, scaled_target);
-                // Formatierung für Zeile 2: Aktuelles Gewicht (z.B. "Aktuell: 12.4g")
-                snprintf(line2, sizeof(line2), "Aktuell: %.1fg", weight);
+                snprintf(line2, sizeof(line2), "-> %s", current_ing->name);
+                snprintf(line3, sizeof(line3), "Ziel: %5.1f g", scaled_target);
+                snprintf(line4, sizeof(line4), "Ist : %5.1f g", weight);
 
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
 
+                // Zeile 1: Welcher Drink wird gemischt?
                 lcd1602_move_cursor(0, 0);
-                lcd1602_write_string(line1);
+                lcd1602_write_string(current_drink->name);
+
+                // Zeile 2: Aktuelle Zutat
                 lcd1602_move_cursor(0, 1);
                 lcd1602_write_string(line2);
 
-                printf("EINGIESSEN: [%s] - Bitte %.1fg eingießen. Aktuell: %.1fg\n",
-                       current_ing->name, scaled_target, weight);
+                // Zeile 3: Berechnetes Zielgewicht
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string(line3);
+
+                // Zeile 4: Live-Gewicht der Waage
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string(line4);
 
                 last_displayed_weight = weight;
                 redraw_display = false;
