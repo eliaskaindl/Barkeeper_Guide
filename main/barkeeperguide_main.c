@@ -237,16 +237,24 @@ void app_main(void)
 
         // 3b. EISWÜRFEL ABFRAGE
         case STATE_ICE_OPTION:
+            // 1. Bildschirm: Die Frage
             if (redraw_display)
             {
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
-                lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Eis ins Glas?");
-                lcd1602_move_cursor(0, 1);
-                lcd1602_write_string("L:Nein | R:Ja");
 
-                printf("DISPLAY: Eis abfragen | L: Nein | R: Ja\n");
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("=== ZUSATZOPTION ===");
+
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("   Eis ins Glas?    ");
+
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string("                    "); // Leerzeile für Optik
+
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("L: Nein    |   R: Ja");
+
                 redraw_display = false;
             }
 
@@ -255,8 +263,15 @@ void app_main(void)
             {
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
+
                 lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Bereite vor...");
+                lcd1602_write_string("====================");
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("   Bereite vor...   ");
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string("                    ");
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("====================");
 
                 scale_tara();
                 last_displayed_weight = -999.0;
@@ -271,21 +286,39 @@ void app_main(void)
             {
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
-                lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Eis reingeben!");
-                lcd1602_move_cursor(0, 1);
-                lcd1602_write_string("R-Knopf: Fertig");
 
-                vTaskDelay(pdMS_TO_TICKS(400));
+                // 2. Bildschirm: Die Handlungsaufforderung
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("== EIS EINFUELLEN ==");
+
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("1. Eis hinzugeben   ");
+
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string("2. Kurz warten      ");
+
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string(" > R-Knopf: Fertig <");
+
+                vTaskDelay(pdMS_TO_TICKS(400)); // Entprellen
+
+                // Warten auf Bestätigung
                 while (!is_right_clicked())
                 {
                     vTaskDelay(pdMS_TO_TICKS(50));
                 }
 
+                // 3. Bildschirm: Ladescreen während Berechnung
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
                 lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Berechne Menge...");
+                lcd1602_write_string("====================");
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string(" Berechne Menge...  ");
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string(" Bitte warten...    ");
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("====================");
 
                 // 1. Eisgewicht messen
                 float ice_weight = scale_get_weight_gram();
@@ -299,12 +332,12 @@ void app_main(void)
                     total_recipe += drinks[selected_drink_idx].ingredients[i].target_weight;
                 }
 
-                // 3. Skalierungsfaktor berechnen (nur runterskalieren, nie hochskalieren)
+                // 3. Skalierungsfaktor berechnen
                 if ((ice_weight + total_recipe) > MAX_GLASS_VOLUME)
                 {
                     recipe_scale_factor = (MAX_GLASS_VOLUME - ice_weight) / total_recipe;
                     if (recipe_scale_factor < 0.1)
-                        recipe_scale_factor = 0.1; // Absicherung
+                        recipe_scale_factor = 0.1;
                 }
                 else
                 {
@@ -321,6 +354,27 @@ void app_main(void)
         // 4. EINGIESSEN DER ZUTATEN
         case STATE_POURING:
         {
+            // Abbruch-Funktion
+            if (is_left_clicked())
+            {
+                lcd1602_clear();
+                vTaskDelay(pdMS_TO_TICKS(2));
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("ABBRUCH!");
+
+                vTaskDelay(pdMS_TO_TICKS(1500));
+
+                // Variablen zwingend zurücksetzen!
+                recipe_scale_factor = 1.0;
+                last_displayed_weight = -999.0;
+
+                // HIER: LEDs zwingend ausschalten!
+                clear_led();
+
+                current_state = STATE_START;
+                redraw_display = true;
+                break; // Bricht den aktuellen switch-Durchlauf ab
+            }
             Drink *current_drink = &drinks[selected_drink_idx];
             Ingredient *current_ing = &current_drink->ingredients[current_ingredient_idx];
 
@@ -340,31 +394,35 @@ void app_main(void)
 
                 snprintf(line2, sizeof(line2), "-> %s", current_ing->name);
                 snprintf(line3, sizeof(line3), "Ziel: %5.1f g", scaled_target);
-                snprintf(line4, sizeof(line4), "Ist : %5.1f g", weight);
+
+                // HIER IST DIE NEUE ZEILE 4: Sie zeigt das Gewicht und "L:Stopp" an
+                snprintf(line4, sizeof(line4), "Ist:%5.1fg |L:Stopp", weight);
 
                 lcd1602_clear();
                 vTaskDelay(pdMS_TO_TICKS(2));
 
-                // Zeile 1: Welcher Drink wird gemischt?
+                // Zeile 1: Drink-Name
                 lcd1602_move_cursor(0, 0);
                 lcd1602_write_string(current_drink->name);
 
-                // Zeile 2: Aktuelle Zutat
+                // Zeile 2: Zutat
                 lcd1602_move_cursor(0, 1);
                 lcd1602_write_string(line2);
 
-                // Zeile 3: Berechnetes Zielgewicht
+                // Zeile 3: Zielgewicht
                 lcd1602_move_cursor(0, 2);
                 lcd1602_write_string(line3);
 
-                // Zeile 4: Live-Gewicht der Waage
+                // Zeile 4: Live-Gewicht & Abbruch-Hinweis
                 lcd1602_move_cursor(0, 3);
                 lcd1602_write_string(line4);
+
+                printf("EINGIESSEN: [%s] - Bitte %.1fg eingießen. Aktuell: %.1fg\n",
+                       current_ing->name, scaled_target, weight);
 
                 last_displayed_weight = weight;
                 redraw_display = false;
             }
-
             // Ziel erreicht?
             if (weight >= scaled_target)
             {
@@ -381,14 +439,22 @@ void app_main(void)
                 for (int c = 3; c > 0; c--)
                 {
                     char countdown_text[40];
-                    snprintf(countdown_text, sizeof(countdown_text), "Naechste in %ds...", c);
+                    snprintf(countdown_text, sizeof(countdown_text), " Naechste in %ds... ", c);
 
                     lcd1602_clear();
                     vTaskDelay(pdMS_TO_TICKS(2));
+
                     lcd1602_move_cursor(0, 0);
-                    lcd1602_write_string("STOPP! Voll.");
+                    lcd1602_write_string("====================");
+
                     lcd1602_move_cursor(0, 1);
+                    lcd1602_write_string("    STOPP! VOLL!    ");
+
+                    lcd1602_move_cursor(0, 2);
                     lcd1602_write_string(countdown_text);
+
+                    lcd1602_move_cursor(0, 3);
+                    lcd1602_write_string("====================");
 
                     led_set_progress(scaled_target, scaled_target, current_ing->r, current_ing->g, current_ing->b);
                     vTaskDelay(pdMS_TO_TICKS(500)); // 500 Millisekunden leuchten
@@ -405,15 +471,24 @@ void app_main(void)
                 }
                 else
                 {
+                    // Dein NEUER formatierter Text für das Tarieren
                     lcd1602_clear();
                     vTaskDelay(pdMS_TO_TICKS(2));
+
                     lcd1602_move_cursor(0, 0);
-                    lcd1602_write_string("Tariere neu...");
+                    lcd1602_write_string("====================");
+
+                    lcd1602_move_cursor(0, 1);
+                    lcd1602_write_string("   Tariere neu...   ");
+
+                    lcd1602_move_cursor(0, 2);
+                    lcd1602_write_string("   Bitte warten!    ");
+
+                    lcd1602_move_cursor(0, 3);
+                    lcd1602_write_string("====================");
 
                     scale_tara();
 
-                    lcd1602_move_cursor(0, 1);
-                    lcd1602_write_string("Stabilisiere...");
                     printf("Gebe der Waage Zeit zum Stabilisieren...\n");
                     vTaskDelay(pdMS_TO_TICKS(1000));
                 }
