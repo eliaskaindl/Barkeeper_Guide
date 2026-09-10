@@ -117,14 +117,24 @@ void app_main(void)
             if (redraw_display)
             {
                 lcd1602_clear();
-                vTaskDelay(pdMS_TO_TICKS(2)); // Hardware-Pause für das LCD
+                vTaskDelay(pdMS_TO_TICKS(2));
 
+                // Zeile 1: Deko-Rand oben
                 lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Barkeeper Guide");
-                lcd1602_move_cursor(0, 1);
-                lcd1602_write_string("R-Knopf: Starten");
+                lcd1602_write_string("====================");
 
-                printf("DISPLAY: Barkeeper Guide | Drücke Rechts um zu starten\n");
+                // Zeile 2: Titel zentriert (bei 20 Zeichen Display)
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("  BARKEEPER  GUIDE  ");
+
+                // Zeile 3: Deko-Rand unten
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string("====================");
+
+                // Zeile 4: Handlungsaufforderung zentriert
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string(" > R-Knopf: Start < ");
+
                 redraw_display = false;
             }
 
@@ -143,11 +153,17 @@ void app_main(void)
                 vTaskDelay(pdMS_TO_TICKS(2));
 
                 lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Glas hinstellen");
-                lcd1602_move_cursor(0, 1);
-                lcd1602_write_string("L:Tara | R:Weiter");
+                lcd1602_write_string("=== VORBEREITUNG ===");
 
-                printf("DISPLAY: Glas hinstellen | L:Tara | R: Menue\n");
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("1. Glas aufstellen");
+
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string("2. Tara druecken");
+
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("L:Tara    | R:Weiter");
+
                 redraw_display = false;
             }
 
@@ -198,7 +214,7 @@ void app_main(void)
 
                 // Zeile 4: Steuerung
                 lcd1602_move_cursor(0, 3);
-                lcd1602_write_string("L:Start  |  R:Nxt");
+                lcd1602_write_string("L:Start  |  R:Next");
 
                 redraw_display = false;
             }
@@ -417,11 +433,17 @@ void app_main(void)
                 vTaskDelay(pdMS_TO_TICKS(2));
 
                 lcd1602_move_cursor(0, 0);
-                lcd1602_write_string("Drink fertig!!");
-                lcd1602_move_cursor(0, 1);
-                lcd1602_write_string("PROST! Glas weg");
+                lcd1602_write_string("********************");
 
-                printf("DISPLAY: Drink fertig! Glas entnehmen. PROST!\n");
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("   DRINK FERTIG!    ");
+
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string("   Glas entnehmen   ");
+
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("********************");
+
                 redraw_display = false;
             }
             current_state = STATE_WAIT_REMOVE;
