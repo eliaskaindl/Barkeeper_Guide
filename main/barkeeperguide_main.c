@@ -12,8 +12,7 @@
 #include "lcd1602.h"
 #include "recipes.h"
 
-#define MAX_GLASS_VOLUME 300.0   // Maximales Fassungsvermögen deines Glase
-float recipe_scale_factor = 1.0; // Multiplikator für die Zutaten
+#define MAX_GLASS_VOLUME 300.0
 
 typedef enum
 {
@@ -31,20 +30,21 @@ AppState current_state = STATE_START;
 bool redraw_display = true;
 int selected_drink_idx = 0;
 int current_ingredient_idx = 0;
-float last_displayed_weight = -999.0; // Hilfsvariable gegen Display-Flackern beim Gießen
+float last_displayed_weight = -999.0; // Hilfsvariable beim Übergang Tarieren -> Gießen
+float recipe_scale_factor = 1.0;
 
 void setup_hardware(void)
 {
     printf("Starte Barkeeper Guide...\n");
 
-    // 1. Hardware initialisieren
+    // Hardware initialisieren
     button_init();
     init_scale();
     init_matrix();
 
     vTaskDelay(pdMS_TO_TICKS(100)); // Warten für stabile Spannungen
 
-    // --- DISPLAY KONFIGURIEREN & STARTEN ---
+    // DISPLAY KONFIGURIEREN & STARTEN
     if (lcd1602_init_default() == ESP_OK)
     {
         printf("Display erfolgreich gestartet!\n");

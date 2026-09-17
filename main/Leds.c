@@ -27,17 +27,17 @@ void clear_led()
     led_strip_clear(matrix_handle);
 }
 
-void test_led() // rotes Blinkmuster um zu veranschaulichen ob es gestartet ist
+void test_led() // rotes Blinkmuster
 {
     for (uint8_t i = 0; i < 3; i++)
     {
-        for (uint8_t j = 0; j < MAX_LEDS; j++) // alle LEDs auf rot
+        for (uint8_t j = 0; j < MAX_LEDS; j++)
         {
             led_strip_set_pixel(matrix_handle, j, 50, 0, 0);
         }
         led_strip_refresh(matrix_handle);
-        vTaskDelay(pdMS_TO_TICKS(250)); // 250ms warten
-        clear_led();                    // alle LEDs löschen
+        vTaskDelay(pdMS_TO_TICKS(250));
+        clear_led();
         vTaskDelay(pdMS_TO_TICKS(250));
     }
 }
@@ -45,35 +45,39 @@ void test_led() // rotes Blinkmuster um zu veranschaulichen ob es gestartet ist
 void led_set_progress(float current_weight, float target_weight, uint32_t r, uint32_t g, uint32_t b)
 {
     if (target_weight <= 0.0)
+    {
         return;
-
-    // 1. Berechnen, wie viel Prozent der Zutat bereits eingegossen sind (0.0 bis 1.0)
+    }
     float progress = current_weight / target_weight;
 
-    // Sicherheits-Begrenzungen (falls das Gewicht negativ ist oder über das Ziel hinausschießt)
+    // Sicherheits-Begrenzungen
     if (progress < 0.0)
+    {
         progress = 0.0;
+    }
     if (progress > 1.0)
+    {
         progress = 1.0;
+    }
 
-    // 2. Berechnen, wie viele der 25 LEDs leuchten sollen
-    int leds_to_light = (int)(progress * MAX_LEDS);
+    float exact_leds = progress * MAX_LEDS; // Kommazahlen für Dimmen
+    int full_leds = (int)exact_leds;
+    float fractional = exact_leds - full_leds; // Restwert
 
-    // 3. LEDs entsprechend setzen
     for (int i = 0; i < MAX_LEDS; i++)
     {
-        if (i < leds_to_light)
+        if (i < full_leds)
         {
-            // Diese LED leuchtet in der Zutatenfarbe
-            led_strip_set_pixel(matrix_handle, i, r, g, b);
+            led_strip_set_pixel(matrix_handle, i, r, g, b); // 100% leuchtende LEDs
+        }
+        else if (i == full_leds)
+        {
+            led_strip_set_pixel(matrix_handle, i, r * fractional, g * fractional, b * fractional); // führende Led wird gedimmt
         }
         else
         {
-            // Der Rest bleibt aus
             led_strip_set_pixel(matrix_handle, i, 0, 0, 0);
         }
     }
-
-    // 4. Die Matrix aktualisieren, damit man die Änderung sieht
     led_strip_refresh(matrix_handle);
 }
