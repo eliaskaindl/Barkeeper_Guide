@@ -42,7 +42,7 @@ void setup_hardware(void)
     init_scale();
     init_matrix();
 
-    vTaskDelay(pdMS_TO_TICKS(100)); // Warten für stabile Spannungen
+    vTaskDelay(pdMS_TO_TICKS(100)); // Auf die langsamen Hardware Komponenten warten
 
     // DISPLAY KONFIGURIEREN & STARTEN
     if (lcd1602_init_default() == ESP_OK)
@@ -62,19 +62,15 @@ void handle_state_start(void)
         lcd1602_clear();
         vTaskDelay(pdMS_TO_TICKS(2));
 
-        // Zeile 1: Deko-Rand oben
         lcd1602_move_cursor(0, 0);
         lcd1602_write_string("====================");
 
-        // Zeile 2: Titel zentriert (bei 20 Zeichen Display)
         lcd1602_move_cursor(0, 1);
         lcd1602_write_string("  BARKEEPER  GUIDE  ");
 
-        // Zeile 3: Deko-Rand unten
         lcd1602_move_cursor(0, 2);
         lcd1602_write_string("====================");
 
-        // Zeile 4: Handlungsaufforderung zentriert
         lcd1602_move_cursor(0, 3);
         lcd1602_write_string(" > R-Knopf: Start < ");
 
@@ -143,19 +139,15 @@ void handle_state_menu(void)
         lcd1602_clear();
         vTaskDelay(pdMS_TO_TICKS(2));
 
-        // Zeile 1: Titel
         lcd1602_move_cursor(0, 0);
         lcd1602_write_string("=== DRINK MENUE ===");
 
-        // Zeile 2: Info
         lcd1602_move_cursor(0, 1);
         lcd1602_write_string("Aktuelle Wahl:");
 
-        // Zeile 3: Der Drink
         lcd1602_move_cursor(0, 2);
         lcd1602_write_string(drink_text);
 
-        // Zeile 4: Steuerung
         lcd1602_move_cursor(0, 3);
         lcd1602_write_string("L:Start  |  R:Next");
 
@@ -200,7 +192,7 @@ void handle_ice_option(void)
         redraw_display = false;
     }
 
-    // Option 1: Kein Eis gewollt (L-Knopf)
+    // Kein Eis
     if (is_left_clicked())
     {
         lcd1602_clear();
@@ -223,13 +215,12 @@ void handle_ice_option(void)
         redraw_display = true;
     }
 
-    // Option 2: Mit Eis (R-Knopf)
+    // Mit Eis
     if (is_right_clicked())
     {
         lcd1602_clear();
         vTaskDelay(pdMS_TO_TICKS(2));
 
-        // 2. Bildschirm: Die Handlungsaufforderung
         lcd1602_move_cursor(0, 0);
         lcd1602_write_string("== EIS EINFUELLEN ==");
 
@@ -250,7 +241,6 @@ void handle_ice_option(void)
             vTaskDelay(pdMS_TO_TICKS(50));
         }
 
-        // 3. Bildschirm: Ladescreen während Berechnung
         lcd1602_clear();
         vTaskDelay(pdMS_TO_TICKS(2));
         lcd1602_move_cursor(0, 0);
@@ -262,24 +252,27 @@ void handle_ice_option(void)
         lcd1602_move_cursor(0, 3);
         lcd1602_write_string("====================");
 
-        // 1. Eisgewicht messen
+        // Eisgewicht
         float ice_weight = scale_get_weight_gram();
         if (ice_weight < 0)
+        {
             ice_weight = 0;
-
-        // 2. Gesamtgewicht des aktuellen Rezepts berechnen
+        }
+        // Gesamtgewicht des aktuellen Rezepts
         float total_recipe = 0;
         for (int i = 0; i < drinks[selected_drink_idx].num_ingredients; i++)
         {
             total_recipe += drinks[selected_drink_idx].ingredients[i].target_weight;
         }
 
-        // 3. Skalierungsfaktor berechnen
+        // 3. Skalierungsfaktor
         if ((ice_weight + total_recipe) > MAX_GLASS_VOLUME)
         {
             recipe_scale_factor = (MAX_GLASS_VOLUME - ice_weight) / total_recipe;
-            if (recipe_scale_factor < 0.1)
+            if (recipe_scale_factor < 0.1) // Fehlerabfangung
+            {
                 recipe_scale_factor = 0.1;
+            }
         }
         else
         {
@@ -287,7 +280,7 @@ void handle_ice_option(void)
         }
 
         scale_tara();
-        last_displayed_weight = -999.0; // künstlich auf ein unmögliches Gewicht setzten damit die if-Abfrage garanntiert anschlägt
+        last_displayed_weight = -999.0;
         current_state = STATE_POURING;
         redraw_display = true;
     }
