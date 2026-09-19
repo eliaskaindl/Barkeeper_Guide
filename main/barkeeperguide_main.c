@@ -258,26 +258,7 @@ void handle_ice_option(void)
         {
             ice_weight = 0;
         }
-        // Gesamtgewicht des aktuellen Rezepts
-        float total_recipe = 0;
-        for (int i = 0; i < drinks[selected_drink_idx].num_ingredients; i++)
-        {
-            total_recipe += drinks[selected_drink_idx].ingredients[i].target_weight;
-        }
-
-        // 3. Skalierungsfaktor
-        if ((ice_weight + total_recipe) > MAX_GLASS_VOLUME)
-        {
-            recipe_scale_factor = (MAX_GLASS_VOLUME - ice_weight) / total_recipe;
-            if (recipe_scale_factor < 0.1) // Fehlerabfangung
-            {
-                recipe_scale_factor = 0.1;
-            }
-        }
-        else
-        {
-            recipe_scale_factor = 1.0;
-        }
+        recipe_scale_factor = 1.0;
 
         scale_tara();
         last_displayed_weight = -999.0;
