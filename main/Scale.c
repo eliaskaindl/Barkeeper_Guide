@@ -11,7 +11,7 @@
 // const long WAAGE_NULLPUNKT = 495300;
 
 // Kalibrierungsfaktor
-const float SCALE_FACTOR = 420.0;
+const float SCALE_FACTOR = 1047;
 
 long dynamic_point_zero = 0;
 

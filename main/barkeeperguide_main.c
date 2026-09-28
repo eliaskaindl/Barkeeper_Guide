@@ -290,6 +290,7 @@ void handle_state_pouring(void)
         redraw_display = true;
         return;
     }
+
     Drink *current_drink = &drinks[selected_drink_idx];
     Ingredient *current_ing = &current_drink->ingredients[current_ingredient_idx];
 
@@ -337,80 +338,91 @@ void handle_state_pouring(void)
         redraw_display = false;
     }
     // Ziel erreicht?
+    // 1. STATISCHER ZÄHLER für das Entprellen (muss ganz am Anfang oder direkt hier deklariert werden)
+    static int stable_measurements = 0;
+
+    // Ziel erreicht?
     if (weight >= scaled_target)
     {
-        printf("Zutat [%s] voll: STOPP! Bitte nicht mehr gießen.\n", current_ing->name);
-        clear_led();
+        // 2. WIR SCHALTEN NOCH NICHT UM, sondern zählen erst mal hoch
+        stable_measurements++;
+        printf("Zielgewicht erreicht. Zähler: %d\n", stable_measurements);
 
-        // 1. HARDWARE-RESET FÜR DEN HX711-CHIP
-        gpio_set_level(GPIO_NUM_1, 1);
-        esp_rom_delay_us(60);
-        gpio_set_level(GPIO_NUM_1, 0);
-        esp_rom_delay_us(10);
-
-        // 2. Countdown auf dem Display anzeigen für die Beruhigungszeit
-        for (int c = 3; c > 0; c--)
+        // 3. ERST WENN DAS GEWICHT 5-MAL IN FOLGE ERREICHT WURDE, GEHT ES WEITER
+        if (stable_measurements >= 5)
         {
-            char countdown_text[40];
-            snprintf(countdown_text, sizeof(countdown_text), " Naechste in %ds... ", c);
-
-            lcd1602_clear();
-            vTaskDelay(pdMS_TO_TICKS(2));
-
-            lcd1602_move_cursor(0, 0);
-            lcd1602_write_string("====================");
-
-            lcd1602_move_cursor(0, 1);
-            lcd1602_write_string("    STOPP! VOLL!    ");
-
-            lcd1602_move_cursor(0, 2);
-            lcd1602_write_string(countdown_text);
-
-            lcd1602_move_cursor(0, 3);
-            lcd1602_write_string("====================");
-
-            led_set_progress(scaled_target, scaled_target, current_ing->r, current_ing->g, current_ing->b);
-            vTaskDelay(pdMS_TO_TICKS(500)); // 500 Millisekunden leuchten
-
-            // 3. BLINK-EFFEKT: LEDs aus
+            printf("Zutat [%s] voll: STOPP! Bitte nicht mehr gießen.\n", current_ing->name);
             clear_led();
-            vTaskDelay(pdMS_TO_TICKS(500));
+
+            // 1. HARDWARE-RESET FÜR DEN HX711-CHIP
+            gpio_set_level(GPIO_NUM_1, 1);
+            esp_rom_delay_us(60);
+            gpio_set_level(GPIO_NUM_1, 0);
+            esp_rom_delay_us(10);
+
+            // 2. Countdown auf dem Display anzeigen für die Beruhigungszeit
+            for (int c = 3; c > 0; c--)
+            {
+                char countdown_text[40];
+                snprintf(countdown_text, sizeof(countdown_text), " Naechste in %ds... ", c);
+
+                lcd1602_clear();
+                vTaskDelay(pdMS_TO_TICKS(2));
+
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("====================");
+
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("    STOPP! VOLL!    ");
+
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string(countdown_text);
+
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("====================");
+
+                led_set_progress(scaled_target, scaled_target, current_ing->r, current_ing->g, current_ing->b);
+                vTaskDelay(pdMS_TO_TICKS(500)); // 500 Millisekunden leuchten
+
+                // 3. BLINK-EFFEKT: LEDs aus
+                clear_led();
+                vTaskDelay(pdMS_TO_TICKS(500));
+            }
+            current_ingredient_idx++;
+
+            if (current_ingredient_idx >= current_drink->num_ingredients)
+            {
+                current_state = STATE_FINISHED;
+            }
+            else
+            {
+                lcd1602_clear();
+                vTaskDelay(pdMS_TO_TICKS(2));
+
+                lcd1602_move_cursor(0, 0);
+                lcd1602_write_string("====================");
+
+                lcd1602_move_cursor(0, 1);
+                lcd1602_write_string("   Tariere neu...   ");
+
+                lcd1602_move_cursor(0, 2);
+                lcd1602_write_string("   Bitte warten!    ");
+
+                lcd1602_move_cursor(0, 3);
+                lcd1602_write_string("====================");
+
+                scale_tara();
+
+                printf("Gebe der Waage Zeit zum Stabilisieren...\n");
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+            last_displayed_weight = -999.0; // Reset für die nächste Zutat
+            redraw_display = true;
         }
-        current_ingredient_idx++;
 
-        if (current_ingredient_idx >= current_drink->num_ingredients)
-        {
-            current_state = STATE_FINISHED;
-        }
-        else
-        {
-            lcd1602_clear();
-            vTaskDelay(pdMS_TO_TICKS(2));
-
-            lcd1602_move_cursor(0, 0);
-            lcd1602_write_string("====================");
-
-            lcd1602_move_cursor(0, 1);
-            lcd1602_write_string("   Tariere neu...   ");
-
-            lcd1602_move_cursor(0, 2);
-            lcd1602_write_string("   Bitte warten!    ");
-
-            lcd1602_move_cursor(0, 3);
-            lcd1602_write_string("====================");
-
-            scale_tara();
-
-            printf("Gebe der Waage Zeit zum Stabilisieren...\n");
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
-        last_displayed_weight = -999.0; // Reset für die nächste Zutat
-        redraw_display = true;
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
-
-    vTaskDelay(pdMS_TO_TICKS(200));
 }
-
 void handle_state_finished(void)
 {
     if (redraw_display)
