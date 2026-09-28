@@ -95,7 +95,7 @@ void scale_auto_tara()
     long sum = 0;
     int valid_measurment = 0;
 
-    // Wir versuchen 20 Mal einen Wert zu holen
+    // 20 Mal versuchen einen Wert zu holen
     for (int i = 0; i < 20; i++)
     {
         long raw_value = scale_read_raw();
@@ -115,7 +115,7 @@ void scale_auto_tara()
     }
     else
     {
-        // Falls gar nichts ging (z.B. Kabel ab), nehmen wir einen Standard-Nullpunkt
+        // Falls gar nichts ging (z.B. Kabel ab), einen Standard-Nullpunkt nehmen
         dynamic_point_zero = 0;
     }
 
@@ -148,7 +148,7 @@ float scale_get_weight_gram()
     long difference = averaged_raw_value - dynamic_point_zero;
 
     // HINWEIS: Falls der Wert beim Drücken negativ wird,
-    // multiplizieren wir die Differenz einfach mit -1
+    // multipliziert man die Differenz einfach mit -1
     // long difference = (averaged_raw_value - dynamic_point_zero) * -1;
 
     float weight_g = (float)difference / SCALE_FACTOR;
@@ -165,14 +165,14 @@ float scale_get_weight_gram()
 void scale_tara()
 {
     printf("Waage wird tariert... Bitte nicht berühren!\n");
-    long sum = 0;
-    int valid_measurment = 0;
+    long sum = 0;             // alle gültigen Messwerte sammeln
+    int valid_measurment = 0; // wie viele echte Werte da sind
 
-    // Wir messen 10-mal schnell hintereinander für einen stabilen neuen Nullpunkt
+    // 10-mal schnell hintereinander messen für einen stabilen neuen Nullpunkt
     for (int i = 0; i < 10; i++)
     {
         long raw_value = scale_read_raw();
-        if (raw_value != 0)
+        if (raw_value != 0) // Sicherheitscheck
         {
             sum += raw_value;
             valid_measurment++;
@@ -182,7 +182,7 @@ void scale_tara()
 
     if (valid_measurment > 0)
     {
-        dynamic_point_zero = sum / valid_measurment;
+        dynamic_point_zero = sum / valid_measurment; // neuer Durchschnitt = neuer Tara wert
         printf("Neu tariert auf Wert: %ld\n", dynamic_point_zero);
     }
     else

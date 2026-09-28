@@ -14,7 +14,7 @@ static void lcd_i2c_write(uint8_t data)
     i2c_master_write_byte(cmd, data | 0x08, true);
     i2c_master_stop(cmd);
 
-    // Wir fangen den Fehlerstatus ab!
+    // Fehlerstatus abfangen
     esp_err_t err = i2c_master_cmd_begin(lcd_cfg.i2c_port, cmd, pdMS_TO_TICKS(200));
     if (err != ESP_OK)
     {
@@ -109,8 +109,8 @@ esp_err_t lcd1602_init_default(void)
     lcd1602_config_t lcd_config = {
         .i2c_port = I2C_NUM_0,
         .i2c_address = 0x27,
-        .sda_io_num = GPIO_NUM_5, // Dein fester SDA Pin
-        .scl_io_num = GPIO_NUM_6  // Dein fester SCL Pin
+        .sda_io_num = GPIO_NUM_5, // SDA Pin
+        .scl_io_num = GPIO_NUM_6  // SCL Pin
     };
 
     // Ruft die originale Funktion mit der festen Projekt-Struktur auf

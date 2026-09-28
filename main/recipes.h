@@ -19,7 +19,6 @@ typedef struct
     Ingredient ingredients[MAX_INGREDIENTS];
 } Drink;
 
-// Das "extern" sagt dem Compiler: "Dieses Array existiert, vertrau mir, aber reserviere hier noch keinen Speicher."
 extern Drink drinks[];
 extern const int NUM_DRINKS;
 

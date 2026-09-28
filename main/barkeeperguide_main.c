@@ -170,7 +170,7 @@ void handle_state_menu(void)
     }
 }
 
-void handle_ice_option(void)
+void handle_state_ice_option(void)
 {
     if (redraw_display)
     {
@@ -283,12 +283,12 @@ void handle_state_pouring(void)
         recipe_scale_factor = 1.0;
         last_displayed_weight = -999.0;
 
-        // HIER: LEDs zwingend ausschalten!
+        // LEDs zwingend ausschalten!
         clear_led();
 
         current_state = STATE_START;
         redraw_display = true;
-        return; // Bricht den aktuellen switch-Durchlauf ab
+        return;
     }
     Drink *current_drink = &drinks[selected_drink_idx];
     Ingredient *current_ing = &current_drink->ingredients[current_ingredient_idx];
@@ -300,7 +300,7 @@ void handle_state_pouring(void)
 
     led_set_progress(weight, scaled_target, current_ing->r, current_ing->g, current_ing->b);
 
-    // Aktualisiere das Display nur, wenn sich der Zustand geändert hat ODER das Gewicht sich um mehr als 0.5g verändert hat
+    // Display aktualisert sich nur, wenn sich der Zustand geändert hat ODER das Gewicht sich um mehr als 0.5g verändert hat
     if (redraw_display || (fabs(weight - last_displayed_weight) >= 0.5))
     {
         char line2[40];
@@ -309,8 +309,6 @@ void handle_state_pouring(void)
 
         snprintf(line2, sizeof(line2), "-> %s", current_ing->name);
         snprintf(line3, sizeof(line3), "Ziel: %5.1f g", scaled_target);
-
-        // HIER IST DIE NEUE ZEILE 4: Sie zeigt das Gewicht und "L:Stopp" an
         snprintf(line4, sizeof(line4), "Ist:%5.1fg |L:Stopp", weight);
 
         lcd1602_clear();
@@ -386,7 +384,6 @@ void handle_state_pouring(void)
         }
         else
         {
-            // Dein NEUER formatierter Text für das Tarieren
             lcd1602_clear();
             vTaskDelay(pdMS_TO_TICKS(2));
 
@@ -459,7 +456,6 @@ void handle_state_wait_remove(void)
     vTaskDelay(pdMS_TO_TICKS(500));
 }
 
-// --- Das Hauptprogramm ---
 void app_main(void)
 {
     setup_hardware();
@@ -473,32 +469,26 @@ void app_main(void)
         case STATE_START:
             handle_state_start();
             break;
-
         // 2. GLAS AUFSTELLEN UND TARIEREN
         case STATE_PLACE_GLASS:
             handle_state_place_glass();
             break;
-
         // 3a. DRINK AUSWAHL (MENÜ)
         case STATE_MENU:
             handle_state_menu();
             break;
-
         // 3b. EISWÜRFEL ABFRAGE
         case STATE_ICE_OPTION:
-            handle_ice_option();
+            handle_state_ice_option();
             break;
-
         // 4. EINGIESSEN DER ZUTATEN
         case STATE_POURING:
             handle_state_pouring();
             break;
-
         // 5. DRINK FERTIG
         case STATE_FINISHED:
             handle_state_finished();
             break;
-
         // 6. WARTEN BIS GLAS WEG IST
         case STATE_WAIT_REMOVE:
             handle_state_wait_remove();
