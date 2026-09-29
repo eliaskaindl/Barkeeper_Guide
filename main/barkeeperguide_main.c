@@ -12,8 +12,6 @@
 #include "lcd1602.h"
 #include "recipes.h"
 
-// #define MAX_GLASS_VOLUME 300.0
-
 typedef enum
 {
     STATE_START,
@@ -252,7 +250,7 @@ void handle_state_ice_option(void)
         lcd1602_move_cursor(0, 3);
         lcd1602_write_string("====================");
 
-        // 1. Eisgewicht selbst
+        // Eisgewicht selbst
         float ice_weight = scale_get_weight_gram();
         if (ice_weight < 0)
         {
@@ -370,30 +368,27 @@ void handle_state_pouring(void)
         last_displayed_weight = weight;
         redraw_display = false;
     }
-    // Ziel erreicht?
-    // 1. STATISCHER ZÄHLER für das Entprellen (muss ganz am Anfang oder direkt hier deklariert werden)
+    // statischer Zähler fürs Entprellen
     static int stable_measurements = 0;
 
-    // Ziel erreicht?
+    // Filter (Reaktion des Systems)
     if (weight >= scaled_target)
     {
-        // 2. WIR SCHALTEN NOCH NICHT UM, sondern zählen erst mal hoch
         stable_measurements++;
         printf("Zielgewicht erreicht. Zähler: %d\n", stable_measurements);
 
-        // 3. ERST WENN DAS GEWICHT 5-MAL IN FOLGE ERREICHT WURDE, GEHT ES WEITER
-        if (stable_measurements >= 5)
+        if (stable_measurements >= 2) // alle # Schleifendurchläufe wird gewartet
         {
             printf("Zutat [%s] voll: STOPP! Bitte nicht mehr gießen.\n", current_ing->name);
             clear_led();
 
-            // 1. HARDWARE-RESET FÜR DEN HX711-CHIP
+            // HARDWARE-RESET FÜR DEN HX711-CHIP
             gpio_set_level(GPIO_NUM_1, 1);
             esp_rom_delay_us(60);
             gpio_set_level(GPIO_NUM_1, 0);
             esp_rom_delay_us(10);
 
-            // 2. Countdown auf dem Display anzeigen für die Beruhigungszeit
+            // Countdown für Beruhigungszeit
             for (int c = 3; c > 0; c--)
             {
                 char countdown_text[40];
@@ -415,9 +410,8 @@ void handle_state_pouring(void)
                 lcd1602_write_string("====================");
 
                 led_set_progress(scaled_target, scaled_target, current_ing->r, current_ing->g, current_ing->b);
-                vTaskDelay(pdMS_TO_TICKS(500)); // 500 Millisekunden leuchten
+                vTaskDelay(pdMS_TO_TICKS(500));
 
-                // 3. BLINK-EFFEKT: LEDs aus
                 clear_led();
                 vTaskDelay(pdMS_TO_TICKS(500));
             }
@@ -449,7 +443,7 @@ void handle_state_pouring(void)
                 printf("Gebe der Waage Zeit zum Stabilisieren...\n");
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
-            last_displayed_weight = -999.0; // Reset für die nächste Zutat
+            last_displayed_weight = -999.0;
             redraw_display = true;
         }
 
