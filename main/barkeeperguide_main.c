@@ -12,7 +12,7 @@
 #include "lcd1602.h"
 #include "recipes.h"
 
-#define MAX_GLASS_VOLUME 300.0
+// #define MAX_GLASS_VOLUME 300.0
 
 typedef enum
 {
@@ -252,15 +252,48 @@ void handle_state_ice_option(void)
         lcd1602_move_cursor(0, 3);
         lcd1602_write_string("====================");
 
-        // Eisgewicht
+        // 1. Eisgewicht selbst
         float ice_weight = scale_get_weight_gram();
         if (ice_weight < 0)
         {
             ice_weight = 0;
         }
-        recipe_scale_factor = 1.0;
+
+        // Skalierungsfaktor
+        Drink *current_drink = &drinks[selected_drink_idx];
+        float total_recipe_weight = 0.0;
+
+        // Gesamtgewicht des puren Original-Rezepts
+        for (int i = 0; i < current_drink->num_ingredients; i++)
+        {
+            total_recipe_weight += current_drink->ingredients[i].target_weight;
+        }
+
+        // Maximalvolumen Glas anpassen
+        float max_glass_volume = 300.0;
+
+        // Freier Platz im Glas geteilt durch Originalmenge
+        if (ice_weight < max_glass_volume)
+        {
+            float available_space = max_glass_volume - (ice_weight * 1.1); // 1.1 wegen Verdrängungsvolumen von Eis
+            recipe_scale_factor = available_space / total_recipe_weight;
+
+            if (recipe_scale_factor > 1.0)
+            {
+                recipe_scale_factor = 1.0;
+            }
+
+            printf("Eis: %.1fg | Rezept-Normal: %.1fg | Neuer Faktor: %.2f\n",
+                   ice_weight, total_recipe_weight, recipe_scale_factor);
+        }
+        else
+        {
+            // Notfall-Wert bei zu viel Eis im Glas
+            recipe_scale_factor = 0.1;
+        }
 
         scale_tara();
+
         last_displayed_weight = -999.0;
         current_state = STATE_POURING;
         redraw_display = true;
