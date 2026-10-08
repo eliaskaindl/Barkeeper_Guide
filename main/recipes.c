@@ -1,5 +1,5 @@
 #include "recipes.h"
-
+// hilfsfunktion mit get
 const int NUM_DRINKS = 7;
 
 // --- Rezept-Datenbank ---
