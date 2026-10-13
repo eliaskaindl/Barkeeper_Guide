@@ -1,5 +1,6 @@
-# Projekt-Exposé: Barkeeper Guide V2.0
-## Präzisions-Mischassistent & Smart Home Bar
+# Projektbeschreibung: Barkeeper Guide V2.0
+* **Präzisions-Mischassistent & Smart Home Bar**
+* **Elias Kaindl, Elektronik und Informationstechnologie Dual, 3. Semester**
 ### 1. Ausgangslage und Zielsetzung
 Im vergangenen Semester wurde der Grundstein für den "Barkeeper Guide" gelegt: Ein digitaler Mischassistent, der den Anwender über ein OLED-Display und eine LED-Matrix schrittweise durch Cocktailezepte führt. Die Dosierung wird dabei über eine Wägezelle in Echtzeit überwacht (inklusive Dichte- und Eis-Kompensation).
 
