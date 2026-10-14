@@ -11,6 +11,8 @@
 #include "Scale.h"
 #include "lcd1602.h"
 #include "recipes.h"
+#include "wlan.h"
+#include "nvs_flash.h"
 
 typedef enum
 {
@@ -497,6 +499,18 @@ void handle_state_wait_remove(void)
 
 void app_main(void)
 {
+    // 1. NVS Speicher initialisieren (MUSS als Erstes passieren!)
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    // 2. Erst DANACH das WLAN starten
+    start_wlan_hotspot();
+
     setup_hardware();
 
     while (1)
