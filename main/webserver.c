@@ -75,6 +75,47 @@ static const char *HTML_BOTTOM =
     "<button class='cheat-btn' onclick='fetch(\"/skip\")'>SKIP</button>"
     "</body></html>";
 
+// Liefert die gesamte Rezeptdatenbank als maschinenlesbares JSON
+static esp_err_t api_recipes_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    // Array öffnen
+    httpd_resp_send_chunk(req, "[", 1);
+
+    extern const int NUM_DRINKS;
+    extern Drink drinks[];
+    char buf[256];
+
+    for (int i = 0; i < NUM_DRINKS; i++)
+    {
+        int len = snprintf(buf, sizeof(buf), "{\"id\":%d,\"name\":\"%s\",\"ingredients\":[", i + 1, drinks[i].name);
+        httpd_resp_send_chunk(req, buf, len);
+
+        for (int j = 0; j < drinks[i].num_ingredients; j++)
+        {
+            // Leere Platzhalter überspringen
+            if (strlen(drinks[i].ingredients[j].name) == 0)
+                continue;
+
+            len = snprintf(buf, sizeof(buf), "{\"name\":\"%s\",\"weight\":%.1f}%s",
+                           drinks[i].ingredients[j].name,
+                           drinks[i].ingredients[j].target_weight,
+                           // Komma setzen, wenn es nicht die letzte gültige Zutat ist
+                           (j < drinks[i].num_ingredients - 1 && strlen(drinks[i].ingredients[j + 1].name) > 0) ? "," : "");
+            httpd_resp_send_chunk(req, buf, len);
+        }
+
+        len = snprintf(buf, sizeof(buf), "]}%s", (i < NUM_DRINKS - 1) ? "," : "");
+        httpd_resp_send_chunk(req, buf, len);
+    }
+
+    // Array schließen und Übertragung beenden
+    httpd_resp_send_chunk(req, "]", 1);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
     // 1. Statischen Kopfbereich senden
@@ -161,5 +202,7 @@ void start_webserver(void)
         httpd_register_uri_handler(server, &u4);
         httpd_uri_t u5 = {"/ice", HTTP_GET, ice_get_handler, NULL};
         httpd_register_uri_handler(server, &u5);
+        httpd_uri_t api_recipes_uri = {"/api/recipes", HTTP_GET, api_recipes_get_handler, NULL};
+        httpd_register_uri_handler(server, &api_recipes_uri);
     }
 }
