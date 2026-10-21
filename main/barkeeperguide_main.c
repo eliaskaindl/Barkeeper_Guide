@@ -2,6 +2,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
 #include "Leds.h"
 #include "Scale.h"
 #include "recipes.h"
@@ -9,7 +10,7 @@
 #include "nvs_flash.h"
 #include "webserver.h"
 
-#define USE_HARDWARE 0
+#define USE_HARDWARE 1
 
 typedef enum
 {
@@ -33,6 +34,14 @@ void setup_hardware(void)
 #if USE_HARDWARE == 1
     init_scale();
     init_matrix();
+
+    // Sicherstellen, dass GPIO 1 als Ausgang für den HX711 Reset konfiguriert ist
+    gpio_set_direction(GPIO_NUM_1, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_1, 0);
+
+    // KRITISCHER FIX: Initiale Nullung ohne Glas, damit das Leergewicht nicht als Glas erkannt wird!
+    printf("Fuehre System-Tarieren beim Booten durch...\n");
+    scale_auto_tara();
 #else
     printf("SIMULATION MODE: Hardware-Initialisierung wird uebersprungen.\n");
 #endif
@@ -49,8 +58,8 @@ void handle_state_menu(void)
     {
         selected_drink_idx = bestellter_drink - 1;
         bestellter_drink = 0;
-        eis_auswahl = 0;                  // Zurücksetzen
-        current_state = STATE_ICE_OPTION; // Zuerst zum Eis-Menü!
+        eis_auswahl = 0;
+        current_state = STATE_ICE_OPTION;
     }
 }
 
@@ -60,88 +69,44 @@ void handle_state_ice_option(void)
     {
         if (eis_auswahl == 1)
         {
-            // OHNE EIS: Volles Rezept (100% Menge)
             recipe_scale_factor = 1.0;
-            printf("Option 'Ohne Eis' gewaehlt.\n");
+            printf("Option 'Ohne Eis' gewaehlt (Faktor 1.0).\n");
         }
         else if (eis_auswahl == 2)
         {
-            // MIT EIS:
-#if USE_HARDWARE == 1
-            // --- ECHTE HARDWARE ---
-            // 1. Gewicht des Eises auf der Waage ablesen
-            float ice_weight = scale_get_weight_gram();
-            if (ice_weight < 0)
-            {
-                ice_weight = 0;
-            }
-
-            // 2. Gesamtgewicht des unskalierten Original-Rezepts berechnen
-            Drink *current_drink = &drinks[selected_drink_idx];
-            float total_recipe_weight = 0.0;
-            for (int i = 0; i < current_drink->num_ingredients; i++)
-            {
-                total_recipe_weight += current_drink->ingredients[i].target_weight;
-            }
-
-            // 3. Verfügbaren Platz berechnen (ausgehend von z.B. 300g Max-Glasvolumen)
-            float max_glass_volume = 300.0;
-            if (ice_weight < max_glass_volume)
-            {
-                float available_space = max_glass_volume - (ice_weight * 1.1); // Factor 1.1 für Eisvolumen
-                recipe_scale_factor = available_space / total_recipe_weight;
-
-                if (recipe_scale_factor > 1.0)
-                {
-                    recipe_scale_factor = 1.0;
-                }
-            }
-            else
-            {
-                recipe_scale_factor = 0.1; // Notfall-Minimalmenge bei extrem viel Eis
-            }
-
-            printf("Eis gewogen: %.1fg -> Skalierungsfaktor: %.2f\n", ice_weight, recipe_scale_factor);
-
-            // 4. Waage für die folgenden Zutaten wieder auf 0 setzen
-            scale_tara();
-
-#else
-            // --- SIMULATION ---
-            // Fester Testwert für das Rezept mit Eis
+            // Da das aktuelle Web-Interface keinen Zwischenschritt für das händische
+            // Einfüllen und Wiegen des Eises hat, nutzen wir einen sicheren Schätzwert.
+            // Sobald du das Web-UI um einen "Eis einfüllen" Screen erweiterst,
+            // kann hier wieder die dynamische Wiegung rein.
             recipe_scale_factor = 0.8;
-            printf("SIMULATION: Option 'Mit Eis' gewaehlt (Faktor 0.8).\n");
-#endif
+            printf("Option 'Mit Eis' gewaehlt (Faktor 0.8).\n");
         }
 
-        // Briefkasten leeren und in den nächsten Zustand wechseln
         eis_auswahl = 0;
-        current_state = STATE_PLACE_GLASS;
+        current_state = STATE_PLACE_GLASS; // Direkt weiter zum Glas aufstellen
     }
 }
 
 void handle_state_place_glass(void)
 {
 #if USE_HARDWARE == 1
-    // --- ECHTER HARDWARE CODE ---
     float weight = scale_get_weight_gram();
+    web_current_weight = weight; // Live-Gewicht ans Handy senden
 
     if (weight > 20.0)
     {
         printf("Glas erkannt (%.1fg)! Warte auf Beruhigung...\n", weight);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(2000)); // Beruhigungszeit
 
-        scale_tara();
+        scale_tara(); // Genau EINMAL tarieren, wenn das Glas steht
         printf("Tariert! Starte Mix-Vorgang...\n");
 
         current_ingredient_idx = 0;
         current_state = STATE_POURING;
     }
-
 #else
-    // --- SIMULATIONS CODE ---
     if (skip_requested == 1)
-    { // In der Simulation überspringen wir das per Button
+    {
         printf("SIMULATION: Glas erkannt und tariert!\n");
         fake_weight = 0.0;
         current_ingredient_idx = 0;
@@ -150,6 +115,7 @@ void handle_state_place_glass(void)
     }
 #endif
 }
+
 void handle_state_pouring(void)
 {
     Drink *current_drink = &drinks[selected_drink_idx];
@@ -157,17 +123,15 @@ void handle_state_pouring(void)
     float target = current_ing->target_weight * recipe_scale_factor;
 
 #if USE_HARDWARE == 1
-    // --- ECHTER HARDWARE CODE ---
     float weight = scale_get_weight_gram();
+    web_current_weight = weight; // Live-Update für das Web-Interface
     led_set_progress(weight, target, current_ing->r, current_ing->g, current_ing->b);
 #else
-    // --- SIMULATIONS CODE ---
     fake_weight += 2.0;
     float weight = fake_weight;
+    web_current_weight = weight;
 #endif
 
-    // --- GEMEINSAME LOGIK (Filter & Abschluss) ---
-    // Diese Logik gilt für beide Fälle!
     static int stable_measurements = 0;
 
     if (weight >= target)
@@ -178,13 +142,14 @@ void handle_state_pouring(void)
             clear_led();
 
 #if USE_HARDWARE == 1
-            // HX711 Reset brauchen wir nur bei echter Hardware
+            // HX711 Hardware-Reset
             gpio_set_level(GPIO_NUM_1, 1);
             esp_rom_delay_us(60);
             gpio_set_level(GPIO_NUM_1, 0);
             esp_rom_delay_us(10);
 #endif
 
+            printf("Zutat %s fertig!\n", current_ing->name);
             vTaskDelay(pdMS_TO_TICKS(1500));
             current_ingredient_idx++;
 
@@ -195,7 +160,7 @@ void handle_state_pouring(void)
             else
             {
 #if USE_HARDWARE == 1
-                scale_tara();
+                scale_tara(); // Nur tarieren für die NÄCHSTE Zutat
 #else
                 fake_weight = 0.0;
 #endif
@@ -208,51 +173,39 @@ void handle_state_pouring(void)
     {
         stable_measurements = 0;
     }
-
-    vTaskDelay(pdMS_TO_TICKS(200));
 }
 
 void handle_state_finished(void)
 {
-    printf("Drink fertig!\n");
+    printf("Drink fertig! Bitte entnehmen.\n");
 
 #if USE_HARDWARE == 1
-    // --- ECHTE HARDWARE ---
-    // Gruenes Licht als optisches Signal für den Nutzer
     led_set_progress(100, 100, 0, 255, 0);
     vTaskDelay(pdMS_TO_TICKS(3000));
     clear_led();
 #else
-    // --- SIMULATION ---
-    // Kurze Verzögerung für die optische Rückmeldung am Handy
     vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
 
-    // Automatisch in den Warteraum für die Glas-Entnahme wechseln
     current_state = STATE_WAIT_REMOVE;
 }
 
 void handle_state_wait_remove(void)
 {
 #if USE_HARDWARE == 1
-    // --- ECHTE HARDWARE ---
     float current_weight = scale_get_weight_gram();
+    web_current_weight = current_weight;
 
-    // Da die Waage vor dem Mixen mit Glas auf 0.0g tariert wurde,
-    // fällt das Gewicht stark ins Minus, sobald das Glas abgehoben wird.
+    // Da die Waage mit Glas auf 0.0g tariert wurde, fällt das Gewicht ins Minus
     if (current_weight < -20.0)
     {
-        printf("Glas wurde entfernt (Gewicht: %.1fg). System setzt sich zurueck...\n", current_weight);
+        printf("Glas entfernt. System setzt sich zurueck...\n");
         vTaskDelay(pdMS_TO_TICKS(1500));
 
-        scale_tara();               // Waage wieder auf den echten Nullpunkt setzen
-        current_state = STATE_MENU; // Zurueck ins Hauptmenue
+        scale_tara();
+        current_state = STATE_MENU;
     }
-    vTaskDelay(pdMS_TO_TICKS(500));
-
 #else
-    // --- SIMULATION ---
-    // In der Simulation warten wir entweder auf den Skip-Button oder setzen zurueck
     if (skip_requested == 1)
     {
         printf("SIMULATION: Glas entnommen.\n");
@@ -260,7 +213,6 @@ void handle_state_wait_remove(void)
         skip_requested = 0;
         current_state = STATE_MENU;
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
 #endif
 }
 
@@ -275,13 +227,15 @@ void app_main(void)
     {
         aktueller_status = current_state;
 
-        // Webserver mit Texten füttern
+        // Webserver mit Texten und Zielgewichten füttern
         snprintf(web_drink_name, sizeof(web_drink_name), "%s", drinks[selected_drink_idx].name);
         snprintf(web_ing_name, sizeof(web_ing_name), "%s", drinks[selected_drink_idx].ingredients[current_ingredient_idx].name);
         web_target_weight = drinks[selected_drink_idx].ingredients[current_ingredient_idx].target_weight * recipe_scale_factor;
-        web_current_weight = fake_weight;
 
-        // Cheat-Logik
+        // ACHTUNG: web_current_weight wird jetzt dynamisch in den State-Handlern gefüllt,
+        // damit das Handy bei USE_HARDWARE == 1 echte Daten sieht!
+
+        // Cheat-Logik (ausschließlich für die Web-Buttons / Simulation)
         if (skip_requested == 1)
         {
             skip_requested = 0;
@@ -293,7 +247,7 @@ void app_main(void)
             }
             else if (current_state == STATE_POURING)
             {
-                fake_weight = web_target_weight; /* Zutat voll machen */
+                fake_weight = web_target_weight;
             }
             else if (current_state == STATE_FINISHED)
             {
@@ -330,6 +284,8 @@ void app_main(void)
             handle_state_wait_remove();
             break;
         }
+
+        // Gibt FreeRTOS die nötige Luft, um den Webserver-Task nicht abzuwürgen
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

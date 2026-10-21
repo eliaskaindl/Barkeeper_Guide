@@ -5,7 +5,7 @@
 #include "freertos/task.h"
 
 #ifndef USE_HARDWARE
-#define USE_HARDWARE 0
+#define USE_HARDWARE 1
 #endif
 
 #define MATRIX_PIN 8
@@ -30,9 +30,9 @@ void clear_led(void)
 {
 #if USE_HARDWARE == 1
     // Nur ausführen, wenn die Hardware aktiv und der Strip initialisiert ist!
-    if (led_strip_handle != NULL)
+    if (matrix_handle != NULL)
     {
-        led_strip_clear(led_strip_handle);
+        led_strip_clear(matrix_handle);
     }
 #endif
 }
