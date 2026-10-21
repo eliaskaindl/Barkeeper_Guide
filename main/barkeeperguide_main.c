@@ -28,6 +28,7 @@ int selected_drink_idx = 0;
 int current_ingredient_idx = 0;
 float fake_weight = 0.0;
 float recipe_scale_factor = 1.0;
+extern volatile int cancel_requested;
 
 void setup_hardware(void)
 {
@@ -258,6 +259,23 @@ void app_main(void)
                 current_state = STATE_MENU;
                 fake_weight = 0.0;
             }
+        }
+
+        // Die harte Abbruch-Logik
+        if (cancel_requested == 1)
+        {
+            cancel_requested = 0;
+            printf("NOT-AUS: Vorgang durch Web-Interface abgebrochen!\n");
+
+            clear_led();
+            recipe_scale_factor = 1.0;
+            fake_weight = 0.0;
+
+            // NEU: Zwingender Reset der ausstehenden Web-Eingaben!
+            eis_auswahl = 0;
+            bestellter_drink = 0;
+
+            current_state = STATE_MENU;
         }
 
         switch (current_state)

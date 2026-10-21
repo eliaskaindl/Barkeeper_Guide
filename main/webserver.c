@@ -4,10 +4,12 @@
 #include "esp_log.h"
 #include <stdio.h>
 #include <stdlib.h>
+
 volatile int bestellter_drink = 0;
 volatile int aktueller_status = 0;
 volatile int skip_requested = 0;
 volatile int eis_auswahl = 0;
+volatile int cancel_requested = 0;
 
 char web_drink_name[32] = "";
 char web_ing_name[32] = "";
@@ -34,6 +36,7 @@ static const char *HTML_TOP =
     ".val { font-size: 45px; color: var(--primary); font-weight: bold; margin: 10px 0; }"
     ".sub { font-size: 18px; color: #8b949e; }"
     ".cheat-btn { position: fixed; bottom: 15px; right: 15px; background: #e74c3c; color: white; border: none; padding: 12px; border-radius: 50%; opacity: 0.3; font-size: 12px; font-weight: bold; z-index: 99; }"
+    ".cancel-btn { position: fixed; bottom: 15px; left: 15px; background: #c0392b; color: white; border: 1px solid #e74c3c; padding: 12px 20px; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.4); z-index: 99; display: none; }"
     ".planner-item { display: flex; justify-content: space-between; align-items: center; background: var(--surface); padding: 12px; margin-bottom: 8px; border-radius: 8px; border: 1px solid var(--border); font-weight: bold; }"
     ".qty-controls { display: flex; align-items: center; gap: 15px; }"
     ".qty-btn { background: var(--border); color: var(--text); border: none; width: 35px; height: 35px; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer; }"
@@ -52,6 +55,7 @@ static const char *HTML_TOP =
     "    viewMode = 'planner';"
     "    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');"
     "    document.getElementById('planner_screen').style.display = 'block';"
+    "    document.getElementById('cancel_btn').style.display = 'none';"
     "    if(recipes.length === 0) {"
     "      document.getElementById('planner_drinks').innerHTML = '<div class=\"sub\">Lade Daten vom ESP32...</div>';"
     "      fetch('/api/recipes').then(r=>r.json()).then(data=>{"
@@ -92,15 +96,7 @@ static const char *HTML_TOP =
     "    for(let item in list) {"
     "      let amount = list[item];"
     "      let bSize = sizes[item] || 700;"
-    "      "
-    "      /* HIER IST DIE LOGIK-WEICHE: */"
-    "      /* Standard: Immer sicher aufrunden, damit kein Drink halb leer bleibt. */"
     "      let bottles = Math.ceil(amount / bSize);"
-    "      "
-    "      /* Falls du deine 10%-Regel zwingend nutzen willst, lösche die Zeile darüber und nutze diese hier: */"
-    "      /* let bottles = Math.floor(amount / bSize) + ((amount % bSize > bSize * 0.1) ? 1 : 0); */"
-    "      /* if (amount > 0 && bottles === 0) bottles = 1; // Verhindert 0 Flaschen bei Minimengen */"
-    "      "
     "      sumHtml += '<li><span>' + item + '</span><span style=\"text-align:right;\"><b style=\"color:var(--primary); font-size:18px;\">' + bottles + 'x Flasche</b><br><span style=\"font-size:12px;color:#8b949e;\">Bedarf: ' + amount.toFixed(0) + ' ml</span></span></li>';"
     "    }"
     "    sumHtml += '</ul>';"
@@ -111,6 +107,15 @@ static const char *HTML_TOP =
     "  fetch('/status').then(r => r.json()).then(d => {"
     "    if(viewMode === 'planner') return;"
     "    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');"
+    "    "
+    "    let cancelBtn = document.getElementById('cancel_btn');"
+    "    /* AENDERUNG: Button wird NUR noch im Hauptmenue (st === 2) ausgeblendet */"
+    "    if(d.st === 2) {"
+    "       if(cancelBtn) cancelBtn.style.display = 'none';"
+    "    } else {"
+    "       if(cancelBtn) cancelBtn.style.display = 'block';"
+    "    }"
+    "    "
     "    if(d.st === 2) document.getElementById('menu').style.display = 'block';"
     "    else if(d.st === 3) document.getElementById('ice_screen').style.display = 'block';"
     "    else {"
@@ -151,6 +156,7 @@ static const char *HTML_BOTTOM =
     "<div id='planner_drinks'></div>"
     "<div id='planner_summary' class='cart-summary'></div>"
     "</div>"
+    "<button id='cancel_btn' class='cancel-btn' onclick='fetch(\"/cancel\")'>ABBRUCH</button>"
     "<button class='cheat-btn' onclick='fetch(\"/skip\")'>SKIP</button>"
     "</body></html>";
 
@@ -192,6 +198,13 @@ static esp_err_t api_recipes_get_handler(httpd_req_t *req)
     // Array schließen und Übertragung beenden
     httpd_resp_send_chunk(req, "]", 1);
     httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t cancel_get_handler(httpd_req_t *req)
+{
+    cancel_requested = 1;
+    httpd_resp_sendstr(req, "OK");
     return ESP_OK;
 }
 
@@ -283,5 +296,7 @@ void start_webserver(void)
         httpd_register_uri_handler(server, &u5);
         httpd_uri_t api_recipes_uri = {"/api/recipes", HTTP_GET, api_recipes_get_handler, NULL};
         httpd_register_uri_handler(server, &api_recipes_uri);
+        httpd_uri_t cancel_uri = {"/cancel", HTTP_GET, cancel_get_handler, NULL};
+        httpd_register_uri_handler(server, &cancel_uri);
     }
 }
