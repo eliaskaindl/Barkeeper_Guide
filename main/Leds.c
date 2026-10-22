@@ -4,10 +4,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#ifndef USE_HARDWARE
-#define USE_HARDWARE 1
-#endif
-
 #define MATRIX_PIN 8
 #define MAX_LEDS 25
 
@@ -28,13 +24,11 @@ void init_matrix()
 
 void clear_led(void)
 {
-#if USE_HARDWARE == 1
     // Nur ausführen, wenn die Hardware aktiv und der Strip initialisiert ist!
     if (matrix_handle != NULL)
     {
         led_strip_clear(matrix_handle);
     }
-#endif
 }
 
 void test_led() // rotes Blinkmuster
@@ -54,7 +48,6 @@ void test_led() // rotes Blinkmuster
 
 void led_set_progress(float current_weight, float target_weight, uint32_t r, uint32_t g, uint32_t b)
 {
-#if USE_HARDWARE == 1
     if (target_weight <= 0.0)
     {
         return;
@@ -91,5 +84,4 @@ void led_set_progress(float current_weight, float target_weight, uint32_t r, uin
         }
     }
     led_strip_refresh(matrix_handle);
-#endif
 }

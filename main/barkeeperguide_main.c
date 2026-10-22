@@ -10,7 +10,7 @@
 #include "nvs_flash.h"
 #include "webserver.h"
 
-#define USE_HARDWARE 1
+#define USE_SCALE 0
 
 typedef enum
 {
@@ -32,9 +32,9 @@ extern volatile int cancel_requested;
 
 void setup_hardware(void)
 {
-#if USE_HARDWARE == 1
-    init_scale();
     init_matrix();
+#if USE_SCALE == 1
+    init_scale();
 
     // Sicherstellen, dass GPIO 1 als Ausgang für den HX711 Reset konfiguriert ist
     gpio_set_direction(GPIO_NUM_1, GPIO_MODE_OUTPUT);
@@ -106,13 +106,21 @@ void handle_state_place_glass(void)
         current_state = STATE_POURING;
     }
 #else
-    if (skip_requested == 1)
+    // SIMULATION: Automatischer Timer anstelle von echtem Gewicht
+    static int sim_wait_counter = 0;
+    sim_wait_counter++;
+
+    // Bei 10ms Delay in der main-Schleife sind 200 Durchläufe ca. 2 Sekunden.
+    // Alternativ kann man weiterhin sofort mit dem Skip-Button überspringen.
+    if (sim_wait_counter > 200 || skip_requested == 1)
     {
-        printf("SIMULATION: Glas erkannt und tariert!\n");
+        printf("SIMULATION: Glas fiktiv erkannt! Starte Mix-Vorgang...\n");
         fake_weight = 0.0;
         current_ingredient_idx = 0;
         current_state = STATE_POURING;
+
         skip_requested = 0;
+        sim_wait_counter = 0; // Zähler für den nächsten Drink zurücksetzen
     }
 #endif
 }
@@ -123,15 +131,17 @@ void handle_state_pouring(void)
     Ingredient *current_ing = &current_drink->ingredients[current_ingredient_idx];
     float target = current_ing->target_weight * recipe_scale_factor;
 
-#if USE_HARDWARE == 1
+#if USE_SCALE == 1
     float weight = scale_get_weight_gram();
+#else
+    // SIMULATION: Fließender Anstieg durch winzige Schritte.
+    // Bei ca. 100 Schleifendurchläufen pro Sekunde bedeuten +0.15g etwa 15g pro Sekunde.
+    fake_weight += 0.15;
+    float weight = fake_weight;
+#endif
+
     web_current_weight = weight; // Live-Update für das Web-Interface
     led_set_progress(weight, target, current_ing->r, current_ing->g, current_ing->b);
-#else
-    fake_weight += 2.0;
-    float weight = fake_weight;
-    web_current_weight = weight;
-#endif
 
     static int stable_measurements = 0;
 
@@ -142,7 +152,7 @@ void handle_state_pouring(void)
         {
             clear_led();
 
-#if USE_HARDWARE == 1
+#if USE_SCALE == 1
             // HX711 Hardware-Reset
             gpio_set_level(GPIO_NUM_1, 1);
             esp_rom_delay_us(60);
@@ -160,7 +170,7 @@ void handle_state_pouring(void)
             }
             else
             {
-#if USE_HARDWARE == 1
+#if USE_SCALE == 1
                 scale_tara(); // Nur tarieren für die NÄCHSTE Zutat
 #else
                 fake_weight = 0.0;
@@ -180,7 +190,7 @@ void handle_state_finished(void)
 {
     printf("Drink fertig! Bitte entnehmen.\n");
 
-#if USE_HARDWARE == 1
+#if USE_SCALE == 1
     led_set_progress(100, 100, 0, 255, 0);
     vTaskDelay(pdMS_TO_TICKS(3000));
     clear_led();
@@ -207,11 +217,24 @@ void handle_state_wait_remove(void)
         current_state = STATE_MENU;
     }
 #else
-    if (skip_requested == 1)
+    // SIMULATION: Automatischer Timer für die Glas-Entnahme
+    static int sim_remove_counter = 0;
+    sim_remove_counter++;
+
+    // Bei 10ms Delay in der main-Schleife sind 400 Durchläufe exakt 4 Sekunden.
+    if (sim_remove_counter > 400 || skip_requested == 1)
     {
-        printf("SIMULATION: Glas entnommen.\n");
+        printf("SIMULATION: Glas fiktiv entnommen. Zurueck zum Menue...\n");
+
+        // Systemvariablen zwingend nullen
         fake_weight = 0.0;
         skip_requested = 0;
+        sim_remove_counter = 0;
+
+        // Ausstehende Web-Bestellungen sicherheitshalber leeren
+        eis_auswahl = 0;
+        bestellter_drink = 0;
+
         current_state = STATE_MENU;
     }
 #endif
@@ -234,7 +257,7 @@ void app_main(void)
         web_target_weight = drinks[selected_drink_idx].ingredients[current_ingredient_idx].target_weight * recipe_scale_factor;
 
         // ACHTUNG: web_current_weight wird jetzt dynamisch in den State-Handlern gefüllt,
-        // damit das Handy bei USE_HARDWARE == 1 echte Daten sieht!
+        // damit das Handy bei USE_SCALE == 1 echte Daten sieht!
 
         // Cheat-Logik (ausschließlich für die Web-Buttons / Simulation)
         if (skip_requested == 1)
