@@ -333,6 +333,17 @@ static esp_err_t status_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+esp_err_t captive_portal_redirect_handler(httpd_req_t *req, httpd_err_code_t err)
+{
+    // HTTP-Status auf 302 (Temporäre Weiterleitung) setzen
+    httpd_resp_set_status(req, "302 Found");
+    // Zieladresse im Header definieren
+    httpd_resp_set_hdr(req, "Location", "http://192.168.4.1/");
+    // Leere Antwort absenden, um den Redirect auszulösen
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
 void start_webserver(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -353,5 +364,6 @@ void start_webserver(void)
         httpd_register_uri_handler(server, &api_recipes_uri);
         httpd_uri_t cancel_uri = {"/cancel", HTTP_GET, cancel_get_handler, NULL};
         httpd_register_uri_handler(server, &cancel_uri);
+        httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, captive_portal_redirect_handler);
     }
 }

@@ -9,6 +9,7 @@
 #include "wlan.h"
 #include "nvs_flash.h"
 #include "webserver.h"
+#include "captive_portal.h"
 
 #define USE_SCALE 0
 
@@ -242,10 +243,12 @@ void handle_state_wait_remove(void)
 
 void app_main(void)
 {
+
     nvs_flash_init();
     start_wlan_hotspot();
     start_webserver();
     setup_hardware();
+    xTaskCreate(dns_server_task, "dns_server", 4096, NULL, 4, NULL);
 
     while (1)
     {
